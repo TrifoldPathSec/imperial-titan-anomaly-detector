@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Imperial Titan{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="{{ url_for('index') }}">Imperial Titan <small>network anomaly detector</small></a>
+  <nav>
+    <a href="{{ url_for('index') }}" class="{{ 'on' if request.endpoint == 'index' }}">Overview</a>
+    <a href="{{ url_for('alerts') }}" class="{{ 'on' if request.endpoint == 'alerts' }}">Alerts</a>
+  </nav>
+</header>
+<main>
+{% block body %}{% endblock %}
+</main>
+</body>
+</html>

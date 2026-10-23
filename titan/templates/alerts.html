@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "macros.html" import alert_rows with context %}
+{% block title %}Alerts · Imperial Titan{% endblock %}
+{% block body %}
+<h1>Alerts</h1>
+<p class="sub">{{ rows|length }} shown. Acknowledging an alert hides it from the open list; it stays in the database.</p>
+
+<form class="filters" method="get">
+  <select name="status" onchange="this.form.submit()">
+    <option value="open" {{ 'selected' if status == 'open' }}>Open</option>
+    <option value="all" {{ 'selected' if status == 'all' }}>All</option>
+  </select>
+  <select name="kind" onchange="this.form.submit()">
+    <option value="">All types</option>
+    {% for k, label in KINDS.items() %}<option value="{{ k }}" {{ 'selected' if kind == k }}>{{ label }}</option>{% endfor %}
+  </select>
+  <select name="severity" onchange="this.form.submit()">
+    <option value="">All severities</option>
+    {% for s in ['high', 'medium', 'low'] %}<option value="{{ s }}" {{ 'selected' if severity == s }}>{{ s|capitalize }}</option>{% endfor %}
+  </select>
+  <noscript><button type="submit">Filter</button></noscript>
+  {% if rows and status == 'open' %}
+  <span style="flex:1"></span>
+  <button form="ackall" type="submit">Acknowledge all shown</button>
+  {% endif %}
+</form>
+{% if rows and status == 'open' %}
+<form id="ackall" method="post" action="{{ url_for('ack') }}">
+  {% for a in rows %}<input type="hidden" name="id" value="{{ a.id }}">{% endfor %}
+  <input type="hidden" name="next" value="{{ request.full_path }}">
+</form>
+{% endif %}
+
+<div class="card scroll">
+{% if rows %}
+  <table><thead><tr><th>When</th><th>Severity</th><th>Type</th><th>What happened</th><th></th></tr></thead>
+  <tbody>{{ alert_rows(rows) }}</tbody></table>
+{% else %}<div class="empty">Nothing matches these filters.</div>{% endif %}
+</div>
+{% endblock %}

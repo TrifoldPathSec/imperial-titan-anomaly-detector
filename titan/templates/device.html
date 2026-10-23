@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% from "macros.html" import alert_rows with context %}
+{% block title %}{{ name(dev) }} · Imperial Titan{% endblock %}
+{% block body %}
+<h1>{{ name(dev) }}</h1>
+<p class="sub mono">{{ dev.mac }}{% if dev.last_ip %} · {{ dev.last_ip }}{% endif %}</p>
+
+<div class="two">
+  <div class="card" style="padding:16px">
+    <dl class="kv">
+      <dt>Hostname (DHCP)</dt><dd>{{ dev.hostname or '–' }}</dd>
+      <dt>Vendor</dt><dd>{{ dev.vendor or ('none: randomized MAC' if dev.randomized else 'unknown') }}</dd>
+      <dt>First seen</dt><dd>{{ dev.first_seen|when }}</dd>
+      <dt>Last seen</dt><dd>{{ dev.last_seen|ago }}</dd>
+      <dt>Sent</dt><dd>{{ '{:,}'.format(dev.packets) }} packets · {{ dev.bytes|bytes }}</dd>
+      <dt>Baseline</dt><dd>{{ ndays }} day(s) of history{% if now < grace %} · new-domain alerts start {{ grace|when }}{% endif %}</dd>
+    </dl>
+  </div>
+  <div class="card" style="padding:16px">
+    <form method="post" action="{{ url_for('label', mac=dev.mac) }}">
+      <label for="label" class="muted" style="display:block;margin-bottom:6px">Name this device (shown in alerts and pushes)</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="label" type="text" name="label" value="{{ dev.label or '' }}" placeholder="e.g. Living room TV" maxlength="60" style="flex:1;min-width:180px">
+        <button class="primary" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<h2>When it talks to the internet</h2>
+<div class="card">
+  <div class="chart" id="hourchart">
+    {% set W, H, L, B = 720, 170, 34, 22 %}
+    {% set step = (W - L) / 24 %}
+    {% set bw = step - 6 %}
+    <svg viewBox="0 0 {{ W }} {{ H + B }}" role="img" aria-label="Average packets sent to the internet per hour of day">
+      {% for h in hours if h.rare %}
+        <rect class="quietband" x="{{ L + h.hour * step }}" y="0" width="{{ step }}" height="{{ H }}"/>
+      {% endfor %}
+      {% for frac in [0.5, 1] %}
+        {% set y = H - frac * (H - 10) %}
+        <line class="grid" x1="{{ L }}" x2="{{ W }}" y1="{{ y }}" y2="{{ y }}"/>
+        <text class="tick" x="{{ L - 6 }}" y="{{ y + 3 }}" text-anchor="end">{{ '%.0f'|format(peak * frac) }}</text>
+      {% endfor %}
+      {% for h in hours %}
+        {% set x = L + h.hour * step + 3 %}
+        {% set bh = (h.avg / peak) * (H - 10) %}
+        <g data-tip="{{ '%02d'|format(h.hour) }}:00 · avg {{ '%.0f'|format(h.avg) }} packets/day · active on {{ h.active }} of {{ ndays }} days{{ ' · quiet hour' if h.rare }}">
+          <rect class="hit" x="{{ x - 3 }}" y="0" width="{{ step }}" height="{{ H }}"/>
+          {% if bh > 0 %}
+          <path class="bar" d="M{{ x }},{{ H }} V{{ H - bh + ([4, bh]|min) }} q0,-{{ [4, bh]|min }} {{ [4, bh]|min }},-{{ [4, bh]|min }} H{{ x + bw - ([4, bh]|min) }} q{{ [4, bh]|min }},0 {{ [4, bh]|min }},{{ [4, bh]|min }} V{{ H }} Z"/>
+          {% endif %}
+        </g>
+        {% if h.hour % 3 == 0 %}<text class="tick" x="{{ x + bw / 2 }}" y="{{ H + 15 }}" text-anchor="middle">{{ '%02d'|format(h.hour) }}</text>{% endif %}
+      {% endfor %}
+      <line class="base" x1="{{ L }}" x2="{{ W }}" y1="{{ H }}" y2="{{ H }}"/>
+    </svg>
+    <div class="tip" id="tip"></div>
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--bar)"></i>Average packets sent to internet addresses per day, by hour</span>
+    <span><i style="background:var(--quiet)"></i>Quiet hour: active on under {{ (config.TITAN.rare_hour_ratio * 100)|int }}% of days, alerts if the device wakes up</span>
+  </div>
+</div>
+
+<h2>Alerts for this device</h2>
+<div class="card scroll">
+{% if alerts %}
+  <table><thead><tr><th>When</th><th>Severity</th><th>Type</th><th>What happened</th><th></th></tr></thead>
+  <tbody>{{ alert_rows(alerts, False) }}</tbody></table>
+{% else %}<div class="empty">No alerts for this device.</div>{% endif %}
+</div>
+
+<h2>Domains it has looked up ({{ domains|length }})</h2>
+<div class="card scroll">
+{% if domains %}
+<table>
+  <thead><tr><th>Domain</th><th>Example query</th><th>First seen</th><th>Last seen</th><th class="num">Queries</th></tr></thead>
+  <tbody>
+  {% for d in domains %}
+  <tr>
+    <td>{{ d.domain }} {% if d.first_seen >= now - 86400 %}<span class="badge new">new</span>{% endif %}</td>
+    <td class="mono muted">{{ d.sample_qname }}</td>
+    <td class="muted">{{ d.first_seen|when }}</td>
+    <td class="muted">{{ d.last_seen|ago }}</td>
+    <td class="num">{{ '{:,}'.format(d.queries) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<div class="empty">No DNS lookups seen from this device. On Wi-Fi, the sensor only sees other devices' lookups if they go through it.</div>{% endif %}
+</div>
+
+<h2>Top destinations by volume</h2>
+<div class="card scroll">
+{% if dests %}
+<table>
+  <thead><tr><th>Address</th><th>Port</th><th>Name (from DNS)</th><th>First seen</th><th class="num">Packets</th><th class="num">Sent</th></tr></thead>
+  <tbody>
+  {% for d in dests %}
+  <tr>
+    <td class="mono">{{ d.dst_ip }}</td>
+    <td class="mono">{{ d.proto }}/{{ d.dst_port }}</td>
+    <td>{{ d.domain or '–' }}</td>
+    <td class="muted">{{ d.first_seen|when }}</td>
+    <td class="num">{{ '{:,}'.format(d.packets) }}</td>
+    <td class="num">{{ d.bytes|bytes }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<div class="empty">No unicast traffic seen from this device.</div>{% endif %}
+</div>
+
+<script>
+(function () {
+  var chart = document.getElementById('hourchart'), tip = document.getElementById('tip');
+  chart.addEventListener('mousemove', function (e) {
+    var g = e.target.closest('g[data-tip]');
+    if (!g) { tip.style.display = 'none'; return; }
+    var r = chart.getBoundingClientRect();
+    tip.textContent = g.getAttribute('data-tip');
+    tip.style.display = 'block';
+    var x = e.clientX - r.left + 12;
+    if (x + tip.offsetWidth > r.width) x = e.clientX - r.left - tip.offsetWidth - 12;
+    tip.style.left = x + 'px';
+    tip.style.top = (e.clientY - r.top - 34) + 'px';
+  });
+  chart.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
+})();
+</script>
+{% endblock %}

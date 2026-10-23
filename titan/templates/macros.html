@@ -1,0 +1,24 @@
+{% macro sev(s) -%}
+<span class="sev {{ s }}">{{ s|capitalize }}</span>
+{%- endmacro %}
+
+{% macro alert_rows(alerts, show_device=True) -%}
+{% for a in alerts %}
+<tr>
+  <td class="muted" style="white-space:nowrap">{{ a.ts|when }}</td>
+  <td>{{ sev(a.severity) }}</td>
+  <td><span class="badge">{{ KINDS.get(a.kind, a.kind) }}</span></td>
+  <td>
+    {% if show_device and a.mac %}<a href="{{ url_for('device', mac=a.mac) }}">{{ a.title }}</a>{% else %}{{ a.title }}{% endif %}
+    <div class="detail">{{ a.detail }}</div>
+  </td>
+  <td>{% if a.acked %}<span class="badge ok">Acknowledged</span>{% else %}
+    <form class="inline" method="post" action="{{ url_for('ack') }}">
+      <input type="hidden" name="id" value="{{ a.id }}"><input type="hidden" name="next" value="{{ request.full_path }}">
+      <button type="submit">Ack</button>
+    </form>{% endif %}
+    {% if a.pushed %}<div class="muted" style="font-size:11px;margin-top:4px">pushed to phone</div>{% endif %}
+  </td>
+</tr>
+{% endfor %}
+{%- endmacro %}

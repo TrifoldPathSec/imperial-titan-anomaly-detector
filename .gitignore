@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+
+# Secrets and real network data never go in git
+.env
+data/
+captures/
+*.db
+*.db-wal
+*.db-shm
+*.pcap
+*.pcapng

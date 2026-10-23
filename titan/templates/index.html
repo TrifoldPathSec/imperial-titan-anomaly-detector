@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "macros.html" import alert_rows with context %}
+{% block body %}
+<h1>Overview</h1>
+<p class="sub">Data up to {{ now|when }}.
+{% if learning.started and not learning.done %}Still learning what normal looks like: baseline alerts start {{ learning.ends|when }}.{% endif %}</p>
+
+<div class="tiles">
+  <div class="tile"><div class="k">Devices seen</div><div class="v">{{ tiles.devices }}</div><div class="n">{{ tiles.active }} active in the last hour</div></div>
+  <div class="tile"><div class="k">Open alerts</div><div class="v">{{ tiles.open }}</div><div class="n">{{ tiles.day }} in the last 24 h</div></div>
+  <div class="tile"><div class="k">Domains learned</div><div class="v">{{ tiles.domains }}</div><div class="n">distinct registrable domains</div></div>
+  <div class="tile"><div class="k">Baseline</div>
+    {% if not learning.started %}<div class="v">–</div><div class="n">no traffic yet</div>
+    {% elif learning.done %}<div class="v">Ready</div><div class="n">learning since {{ learning.start|when }}</div>
+    {% else %}<div class="v">{{ learning.pct }}%</div><div class="progress"><div style="width:{{ learning.pct }}%"></div></div>
+    {% endif %}
+  </div>
+</div>
+
+<h2>Recent alerts</h2>
+<div class="card scroll">
+{% if alerts %}
+  <table><thead><tr><th>When</th><th>Severity</th><th>Type</th><th>What happened</th><th></th></tr></thead>
+  <tbody>{{ alert_rows(alerts) }}</tbody></table>
+{% else %}<div class="empty">No alerts yet.</div>{% endif %}
+</div>
+
+<h2>Devices</h2>
+<div class="card scroll">
+{% if devices %}
+<table>
+  <thead><tr><th>Device</th><th>IP</th><th>MAC</th><th>First seen</th><th>Last seen</th><th class="num">Domains</th><th class="num">Traffic sent</th><th class="num">Open alerts</th></tr></thead>
+  <tbody>
+  {% for d in devices %}
+  <tr>
+    <td><a href="{{ url_for('device', mac=d.mac) }}">{{ name(d) }}</a>
+      {% if d.randomized %}<span class="badge" title="Locally administered MAC">randomized MAC</span>{% endif %}</td>
+    <td class="mono">{{ d.last_ip or '–' }}</td>
+    <td class="mono muted">{{ d.mac }}</td>
+    <td class="muted">{{ d.first_seen|when }}</td>
+    <td class="muted">{{ d.last_seen|ago }}</td>
+    <td class="num">{{ d.domains }}</td>
+    <td class="num">{{ d.bytes|bytes }}</td>
+    <td class="num">{% if d.open_alerts %}<span class="sev high">{{ d.open_alerts }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<div class="empty">No devices yet. Start a capture or ingest a pcap.</div>{% endif %}
+</div>
+{% endblock %}
