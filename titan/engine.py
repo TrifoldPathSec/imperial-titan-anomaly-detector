@@ -184,7 +184,7 @@ class Engine:
                     f"First packet: {fmt_time(ts)}",
                 ]
                 self._alert("new_device", "medium", mac,
-                            f"New device on the network: {display_name(dev)}",
+                            f"New device on the network: {self._name(mac)}",
                             "\n".join(lines), f"new_device:{mac}", ts)
 
     # -- DNS --------------------------------------------------------------
@@ -210,7 +210,6 @@ class Engine:
         if self.network_learning(ts) or self.in_grace(mac, ts):
             return
 
-        dev = self.devices[mac]
         severity = "medium" if new_to_network else "low"
         lines = [
             f"Query: {obs.dns_query}",
@@ -224,7 +223,7 @@ class Engine:
             lines.append(f"It happened at {hour:02d}:00, an hour when this device is usually silent.")
         lines.append(f"When: {fmt_time(ts)}")
         self._alert("new_dns", severity, mac,
-                    f"{display_name(dev)} looked up a new domain: {dom}",
+                    f"{self._name(mac)} looked up a new domain: {dom}",
                     "\n".join(lines), f"new_dns:{mac}:{dom}", ts)
 
     # -- traffic ----------------------------------------------------------
@@ -278,7 +277,6 @@ class Engine:
         prof = self._profile(mac, ts)
         if prof is None:
             return
-        dev = self.devices[mac]
         if (not tot["hour_alerted"] and tot["p"] >= self.cfg.rare_hour_min_packets
                 and prof.ratio(hour) < self.cfg.rare_hour_ratio):
             tot["hour_alerted"] = True
@@ -290,7 +288,7 @@ class Engine:
                 f"When: {fmt_time(ts)}",
             ]
             self._alert("unusual_hour", "medium", mac,
-                        f"{display_name(dev)} is active at an unusual hour ({hour:02d}:00)",
+                        f"{self._name(mac)} is active at an unusual hour ({hour:02d}:00)",
                         "\n".join(lines), f"unusual_hour:{mac}:{day}:{hour}", ts)
         if not tot["spiked"] and tot["b"] >= prof.spike_threshold:
             tot["spiked"] = True
@@ -302,7 +300,7 @@ class Engine:
                 f"When: {fmt_time(ts)}",
             ]
             self._alert("volume_spike", "medium", mac,
-                        f"{display_name(dev)} is uploading much more than usual",
+                        f"{self._name(mac)} is uploading much more than usual",
                         "\n".join(lines), f"volume_spike:{mac}:{day}:{hour}", ts)
 
     def _check_fanout(self, obs: Observation) -> None:
@@ -318,7 +316,6 @@ class Engine:
             return
         hosts = sorted({ip for ip, _ in targets})
         ports = sorted({p for _, p in targets})
-        dev = self.devices[mac]
         lines = [
             f"{len(targets)} new connection attempts inside {self.cfg.fanout_window}s "
             f"to {len(hosts)} LAN host(s) on {len(ports)} port(s).",
@@ -327,7 +324,7 @@ class Engine:
             f"When: {fmt_time(ts)}",
         ]
         self._alert("lan_scan", "high", mac,
-                    f"{display_name(dev)} looks like it is scanning the LAN",
+                    f"{self._name(mac)} looks like it is scanning the LAN",
                     "\n".join(lines), f"lan_scan:{mac}:{int(ts // 600)}", ts)
         targets.clear()
 
@@ -365,6 +362,14 @@ class Engine:
         return prof
 
     # -- alerts -----------------------------------------------------------
+
+    def _name(self, mac: str) -> str:
+        """Display name, reading the label fresh: the dashboard may have set it."""
+        dev = dict(self.devices[mac])
+        row = self.conn.execute("SELECT label FROM devices WHERE mac = ?", (mac,)).fetchone()
+        if row and row[0]:
+            dev["label"] = row[0]
+        return display_name(dev)
 
     def _alert(self, kind: str, severity: str, mac: str | None, title: str,
                detail: str, dedupe: str, ts: float) -> dict | None:

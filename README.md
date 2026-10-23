@@ -157,7 +157,7 @@ titan/
   dashboard.py  Flask app + templates/ + static/
   synth.py      synthetic demo pcap
   cli.py        python -m titan {init,capture,ingest,dashboard,notify-test,status,demo}
-tests/          17 tests: parsing, every detector, learning/grace logic, notifier, dashboard
+tests/          18 tests: parsing, every detector, learning/grace logic, notifier, dashboard
 ```
 
 ```bash

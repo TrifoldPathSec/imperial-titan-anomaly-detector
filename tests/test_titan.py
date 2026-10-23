@@ -115,6 +115,18 @@ def test_new_device_and_new_domain_after_learning(tmp_path):
     assert sev == "medium"  # nobody on the network used it before
 
 
+def test_label_set_while_running_is_used_in_alerts(tmp_path):
+    e = make_engine(tmp_path)
+    e.process(obs(T0))
+    e.conn.execute("UPDATE devices SET label = 'Study laptop' WHERE mac = ?", (DEV,))
+    e.conn.commit()
+    e.process(obs(T0 + 2 * DAY, dns_query="x.newsite.example", dst_ip="192.168.1.1", dst_port=53))
+    e.flush()
+    title = e.conn.execute("SELECT title FROM alerts").fetchone()[0]
+    assert title.startswith("Study laptop ")
+    assert e.conn.execute("SELECT label FROM devices WHERE mac = ?", (DEV,)).fetchone()[0] == "Study laptop"
+
+
 def test_new_device_grace_period(tmp_path):
     e = make_engine(tmp_path)
     e.process(obs(T0))
